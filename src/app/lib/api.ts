@@ -9,6 +9,13 @@ export interface SimulationRecord {
   taskSnapshot: { total: number; done: number; rate: number; categories: string[] };
 }
 
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+}
+
 const BASE = `https://${projectId}.supabase.co/functions/v1/make-server-886336a3`;
 const HEADERS = {
   'Content-Type': 'application/json',
@@ -56,4 +63,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ userId, tasks, goal, userName, history }),
     }),
+
+  getChat: (userId: string) =>
+    req<ChatMessage[]>(`/chat/${userId}`),
+
+  sendChat: (userId: string, message: string, userName: string) =>
+    req<{ message?: ChatMessage; error?: string }>(`/chat/${userId}`, {
+      method: 'POST',
+      body: JSON.stringify({ message, userName }),
+    }),
+
+  clearChat: (userId: string) =>
+    req(`/chat/${userId}`, { method: 'DELETE' }),
 };

@@ -104,6 +104,95 @@ app.delete(`${P}/simulations/:userId`, async (c) => {
   }
 });
 
+// ─── CHAT HISTORY ────────────────────────────────────────────
+
+app.get(`${P}/chat/:userId`, async (c) => {
+  try {
+    const history = await kv.get(`chat:${c.req.param("userId")}`);
+    return c.json(Array.isArray(history) ? history : []);
+  } catch (e) {
+    console.log("Error getting chat:", e);
+    return c.json({ error: `Failed to get chat: ${e}` }, 500);
+  }
+});
+
+app.post(`${P}/chat/:userId`, async (c) => {
+  try {
+    const userId = c.req.param("userId");
+    const { message, userName } = await c.req.json();
+
+    const apiKey = Deno.env.get("GEMINI_API_KEY");
+    if (!apiKey) return c.json({ error: "GEMINI_API_KEY belum dikonfigurasi di server." }, 500);
+
+    const existing = await kv.get(`chat:${userId}`);
+    const history = Array.isArray(existing) ? existing : [];
+
+    const conversationContext = history.slice(-20).map((msg: any) => ({
+      role: msg.role === "user" ? "user" : "model",
+      parts: [{ text: msg.content }],
+    }));
+
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system_instruction: {
+            parts: [{ text: `Kamu adalah AI productivity coach untuk aplikasi Impetus. Nama pengguna adalah ${userName}. Bantu dia meningkatkan produktivitas, mencapai goal, dan membangun kebiasaan positif. Jawab dalam Bahasa Indonesia. Jadilah singkat, personal, dan memotivasi.` }],
+          },
+          contents: [
+            ...conversationContext,
+            { role: "user", parts: [{ text: message }] },
+          ],
+          generationConfig: { temperature: 0.8, maxOutputTokens: 1024 },
+        }),
+      }
+    );
+
+    if (!geminiRes.ok) {
+      const errText = await geminiRes.text();
+      console.log("Gemini API error:", errText);
+      return c.json({ error: `Gemini API error: ${errText}` }, 500);
+    }
+
+    const data = await geminiRes.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) return c.json({ error: "Tidak ada respons dari Gemini AI." }, 500);
+
+    const userMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: message,
+      createdAt: new Date().toISOString(),
+    };
+    const aiMessage = {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: text,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updatedHistory = [...history, userMessage, aiMessage];
+    await kv.set(`chat:${userId}`, updatedHistory);
+
+    return c.json({ message: aiMessage });
+  } catch (e) {
+    console.log("Error in chat:", e);
+    return c.json({ error: `Chat gagal: ${e}` }, 500);
+  }
+});
+
+app.delete(`${P}/chat/:userId`, async (c) => {
+  try {
+    await kv.set(`chat:${c.req.param("userId")}`, []);
+    return c.json({ success: true });
+  } catch (e) {
+    console.log("Error clearing chat:", e);
+    return c.json({ error: `Failed to clear chat: ${e}` }, 500);
+  }
+});
+
 // ─── AI SIMULATION ───────────────────────────────────────────
 
 app.post(`${P}/simulate`, async (c) => {

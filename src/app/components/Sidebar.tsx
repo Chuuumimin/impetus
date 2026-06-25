@@ -1,4 +1,4 @@
-import { LayoutDashboard, CheckSquare, BarChart3, Sparkles, Crown, Zap } from 'lucide-react';
+import { LayoutDashboard, CheckSquare, BarChart3, Sparkles, Crown, Zap, MessageSquare } from 'lucide-react';
 import type { Page, User } from '../App';
 
 interface SidebarProps {
@@ -11,6 +11,7 @@ const navItems: { id: Page; label: string; icon: React.ElementType; proOnly?: bo
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'tasks', label: 'Kelola Tugas', icon: CheckSquare },
   { id: 'progress', label: 'Progress', icon: BarChart3 },
+  { id: 'chat', label: 'Chat AI', icon: MessageSquare },
   { id: 'simulation', label: 'Future Simulation', icon: Sparkles, proOnly: true },
 ];
 
@@ -105,7 +106,7 @@ export function Sidebar({ currentPage, setCurrentPage, user }: SidebarProps) {
             className="w-full py-1.5 rounded-lg text-xs font-medium transition-opacity hover:opacity-90"
             style={{ background: 'linear-gradient(90deg, #D97706, #F59E0B)', color: '#fff' }}
           >
-            Upgrade — Rp 49.000/bln
+            Upgrade &mdash; Rp 49.000/bln
           </button>
         </div>
       )}
