@@ -1,4 +1,3 @@
-import { projectId, publicAnonKey } from '/utils/supabase/info';
 import type { Task, User } from '../App';
 
 export interface SimulationRecord {
@@ -15,6 +14,9 @@ export interface ChatMessage {
   content: string;
   createdAt: string;
 }
+
+const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID as string;
+const publicAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 const BASE = `https://${projectId}.supabase.co/functions/v1/make-server-886336a3`;
 const HEADERS = {
