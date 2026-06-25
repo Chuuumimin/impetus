@@ -5,9 +5,10 @@ import { Dashboard } from './components/Dashboard';
 import { Tasks } from './components/Tasks';
 import { Progress } from './components/Progress';
 import { FutureSimulation } from './components/FutureSimulation';
-import { api, type SimulationRecord } from './lib/api';
+import { ChatAI } from './components/ChatAI';
+import { api, type SimulationRecord, type ChatMessage } from './lib/api';
 
-export type Page = 'dashboard' | 'tasks' | 'progress' | 'simulation';
+export type Page = 'dashboard' | 'tasks' | 'progress' | 'simulation' | 'chat';
 export type Plan = 'free' | 'pro';
 
 export interface User {
@@ -59,6 +60,7 @@ export default function App() {
   const [user, setUser] = useState<User>(DEFAULT_USER as User);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [simHistory, setSimHistory] = useState<SimulationRecord[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const userId = useRef(getUserId()).current;
   const taskSaveTimer = useRef<ReturnType<typeof setTimeout>>();
   const isFirstLoad = useRef(true);
@@ -74,20 +76,24 @@ export default function App() {
           setUser(DEFAULT_USER as User);
           setTasks(DEFAULT_TASKS);
           setSimHistory([]);
+          setChatMessages([]);
         } else {
           setUser(userData as User);
-          const [tasksData, historyData] = await Promise.all([
+          const [tasksData, historyData, chatData] = await Promise.all([
             api.getTasks(userId),
             api.getSimulations(userId),
+            api.getChat(userId),
           ]);
           setTasks(Array.isArray(tasksData) ? tasksData : DEFAULT_TASKS);
           setSimHistory(Array.isArray(historyData) ? historyData : []);
+          setChatMessages(Array.isArray(chatData) ? chatData : []);
         }
       } catch (e) {
         console.log('Backend load failed, using defaults:', e);
         setUser(DEFAULT_USER as User);
         setTasks(DEFAULT_TASKS);
         setSimHistory([]);
+        setChatMessages([]);
       } finally {
         setLoading(false);
       }
@@ -129,6 +135,31 @@ export default function App() {
     setSimHistory([]);
   };
 
+  const sendChatMessage = async (message: string) => {
+    const optimisticUser: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: message,
+      createdAt: new Date().toISOString(),
+    };
+    setChatMessages(prev => [...prev, optimisticUser]);
+    const result = await api.sendChat(userId, message, user.name);
+    if (result.error) {
+      setChatMessages(prev => prev.filter(m => m.id !== optimisticUser.id));
+      throw new Error(result.error);
+    }
+    if (!result.message) {
+      setChatMessages(prev => prev.filter(m => m.id !== optimisticUser.id));
+      throw new Error('Tidak ada respons dari AI');
+    }
+    setChatMessages(prev => [...prev, result.message!]);
+  };
+
+  const clearChat = async () => {
+    await api.clearChat(userId);
+    setChatMessages([]);
+  };
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center" style={{ background: '#080B14' }}>
@@ -168,6 +199,14 @@ export default function App() {
             simulateAI={simulateAI}
             simHistory={simHistory}
             clearSimHistory={clearSimHistory}
+          />
+        )}
+        {currentPage === 'chat' && (
+          <ChatAI
+            user={user}
+            messages={chatMessages}
+            onSend={sendChatMessage}
+            onClear={clearChat}
           />
         )}
       </main>

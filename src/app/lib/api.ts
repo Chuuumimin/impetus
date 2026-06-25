@@ -1,4 +1,3 @@
-import { projectId, publicAnonKey } from '/utils/supabase/info';
 import type { Task, User } from '../App';
 
 export interface SimulationRecord {
@@ -8,6 +7,16 @@ export interface SimulationRecord {
   createdAt: string;
   taskSnapshot: { total: number; done: number; rate: number; categories: string[] };
 }
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+}
+
+const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID as string;
+const publicAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 const BASE = `https://${projectId}.supabase.co/functions/v1/make-server-886336a3`;
 const HEADERS = {
@@ -56,4 +65,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ userId, tasks, goal, userName, history }),
     }),
+
+  getChat: (userId: string) =>
+    req<ChatMessage[]>(`/chat/${userId}`),
+
+  sendChat: (userId: string, message: string, userName: string) =>
+    req<{ message?: ChatMessage; error?: string }>(`/chat/${userId}`, {
+      method: 'POST',
+      body: JSON.stringify({ message, userName }),
+    }),
+
+  clearChat: (userId: string) =>
+    req(`/chat/${userId}`, { method: 'DELETE' }),
 };
