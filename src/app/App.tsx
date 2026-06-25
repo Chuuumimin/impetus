@@ -1,14 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { Toaster } from 'sonner';
+import type { Session } from '@supabase/supabase-js';
+import { supabase } from './lib/supabase';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { Tasks } from './components/Tasks';
 import { Progress } from './components/Progress';
 import { FutureSimulation } from './components/FutureSimulation';
 import { ChatAI } from './components/ChatAI';
+import { Profile } from './components/Profile';
+import { AuthPage } from './components/AuthPage';
 import { api, type SimulationRecord, type ChatMessage } from './lib/api';
 
-export type Page = 'dashboard' | 'tasks' | 'progress' | 'simulation' | 'chat';
+export type Page = 'dashboard' | 'tasks' | 'progress' | 'simulation' | 'chat' | 'profile';
 export type Plan = 'free' | 'pro';
 
 export interface User {
@@ -30,14 +34,6 @@ export interface Task {
   dueDate?: string;
 }
 
-const DEFAULT_USER = {
-  name: 'Budi Santoso',
-  email: 'budi@example.com',
-  plan: 'free',
-  avatar: 'BS',
-  joinDate: new Date().toISOString(),
-};
-
 const DEFAULT_TASKS: Task[] = [
   { id: '1', title: 'Baca buku Atomic Habits', description: 'Selesaikan 3 bab per minggu', status: 'done', priority: 'high', category: 'Belajar', createdAt: new Date(Date.now() - 7 * 86400000).toISOString() },
   { id: '2', title: 'Olahraga rutin 30 menit', description: 'Lari pagi atau gym setiap hari', status: 'done', priority: 'high', category: 'Kesehatan', createdAt: new Date(Date.now() - 6 * 86400000).toISOString() },
@@ -48,32 +44,79 @@ const DEFAULT_TASKS: Task[] = [
   { id: '7', title: 'Pelajari public speaking', description: 'Ikuti kelas Toastmasters atau latihan presentasi', status: 'done', priority: 'medium', category: 'Karir', createdAt: new Date(Date.now() - 10 * 86400000).toISOString() },
 ];
 
-function getUserId(): string {
-  let id = localStorage.getItem('impetus_uid');
-  if (!id) { id = crypto.randomUUID(); localStorage.setItem('impetus_uid', id); }
-  return id;
+function makeDefaultUser(session: Session): User {
+  const name = (session.user.user_metadata?.name as string) || session.user.email?.split('@')[0] || 'User';
+  const avatar = name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
+  return { name, email: session.user.email || '', plan: 'free', avatar, joinDate: new Date().toISOString() };
+}
+
+function LoadingScreen({ text }: { text: string }) {
+  return (
+    <div className="flex h-screen items-center justify-center" style={{ background: '#080B14' }}>
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6D28D9, #4F46E5)' }}>
+          <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <div className="text-center">
+          <p className="text-white font-medium">Impetus</p>
+          <p className="text-xs mt-1" style={{ color: '#64748B' }}>{text}</p>
+        </div>
+        <div className="flex gap-1.5">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="w-1.5 h-1.5 rounded-full" style={{ background: '#6D28D9', animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }} />
+          ))}
+        </div>
+      </div>
+      <style>{`@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}`}</style>
+    </div>
+  );
 }
 
 export default function App() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<User>(DEFAULT_USER as User);
+  const [user, setUser] = useState<User>({ name: '', email: '', plan: 'free', avatar: '', joinDate: '' });
   const [tasks, setTasks] = useState<Task[]>([]);
   const [simHistory, setSimHistory] = useState<SimulationRecord[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const userId = useRef(getUserId()).current;
   const taskSaveTimer = useRef<ReturnType<typeof setTimeout>>();
-  const isFirstLoad = useRef(true);
+  const skipNextTaskSave = useRef(true);
 
   useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setSession(session);
+      if (!session) {
+        setTasks([]);
+        setSimHistory([]);
+        setChatMessages([]);
+        setCurrentPage('dashboard');
+        skipNextTaskSave.current = true;
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!session) return;
+    const userId = session.user.id;
+    skipNextTaskSave.current = true;
     const init = async () => {
       setLoading(true);
       try {
         const userData = await api.getUser(userId);
         if (userData.error) {
-          await api.createUser(userId, DEFAULT_USER);
+          const defaultUser = makeDefaultUser(session);
+          await api.createUser(userId, defaultUser);
           await api.saveTasks(userId, DEFAULT_TASKS);
-          setUser(DEFAULT_USER as User);
+          setUser(defaultUser);
           setTasks(DEFAULT_TASKS);
           setSimHistory([]);
           setChatMessages([]);
@@ -88,9 +131,9 @@ export default function App() {
           setSimHistory(Array.isArray(historyData) ? historyData : []);
           setChatMessages(Array.isArray(chatData) ? chatData : []);
         }
-      } catch (e) {
-        console.log('Backend load failed, using defaults:', e);
-        setUser(DEFAULT_USER as User);
+      } catch {
+        const defaultUser = makeDefaultUser(session);
+        setUser(defaultUser);
         setTasks(DEFAULT_TASKS);
         setSimHistory([]);
         setChatMessages([]);
@@ -99,43 +142,47 @@ export default function App() {
       }
     };
     init();
-  }, [userId]);
+  }, [session?.user.id]);
 
   useEffect(() => {
-    if (isFirstLoad.current) { isFirstLoad.current = false; return; }
+    if (!session) return;
+    if (skipNextTaskSave.current) { skipNextTaskSave.current = false; return; }
     if (loading) return;
     clearTimeout(taskSaveTimer.current);
     taskSaveTimer.current = setTimeout(() => {
-      api.saveTasks(userId, tasks).catch(e => console.log('Auto-save tasks failed:', e));
+      api.saveTasks(session.user.id, tasks).catch(e => console.log('Auto-save tasks failed:', e));
     }, 800);
     return () => clearTimeout(taskSaveTimer.current);
-  }, [tasks, userId, loading]);
+  }, [tasks, session?.user.id, loading]);
 
   const upgradeToPro = async () => {
+    if (!session) return;
     try {
-      const result = await api.upgradeUser(userId);
+      const result = await api.upgradeUser(session.user.id);
       if (result.success) setUser(result.user);
       else throw new Error('Upgrade unsuccessful');
-    } catch (e) {
-      console.log('Backend upgrade failed, upgrading locally:', e);
+    } catch {
       setUser(prev => ({ ...prev, plan: 'pro' }));
     }
   };
 
   const simulateAI = async (tasks: Task[], goal: string): Promise<string> => {
-    const result = await api.simulate(userId, tasks, goal, user.name, simHistory);
+    if (!session) throw new Error('Tidak terautentikasi');
+    const result = await api.simulate(session.user.id, tasks, goal, user.name, simHistory);
     if (result.error) throw new Error(result.error);
     if (!result.result) throw new Error('Tidak ada hasil dari AI');
-    api.getSimulations(userId).then(h => { if (Array.isArray(h)) setSimHistory(h); }).catch(() => {});
+    api.getSimulations(session.user.id).then(h => { if (Array.isArray(h)) setSimHistory(h); }).catch(() => {});
     return result.result;
   };
 
   const clearSimHistory = async () => {
-    await api.clearSimulations(userId);
+    if (!session) return;
+    await api.clearSimulations(session.user.id);
     setSimHistory([]);
   };
 
   const sendChatMessage = async (message: string) => {
+    if (!session) throw new Error('Tidak terautentikasi');
     const optimisticUser: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -143,7 +190,7 @@ export default function App() {
       createdAt: new Date().toISOString(),
     };
     setChatMessages(prev => [...prev, optimisticUser]);
-    const result = await api.sendChat(userId, message, user.name);
+    const result = await api.sendChat(session.user.id, message, user.name);
     if (result.error) {
       setChatMessages(prev => prev.filter(m => m.id !== optimisticUser.id));
       throw new Error(result.error);
@@ -156,33 +203,16 @@ export default function App() {
   };
 
   const clearChat = async () => {
-    await api.clearChat(userId);
+    if (!session) return;
+    await api.clearChat(session.user.id);
     setChatMessages([]);
   };
 
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center" style={{ background: '#080B14' }}>
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6D28D9, #4F46E5)' }}>
-            <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <div className="text-center">
-            <p className="text-white font-medium">Impetus</p>
-            <p className="text-xs mt-1" style={{ color: '#64748B' }}>Menghubungkan ke database...</p>
-          </div>
-          <div className="flex gap-1.5">
-            {[0, 1, 2].map(i => (
-              <div key={i} className="w-1.5 h-1.5 rounded-full" style={{ background: '#6D28D9', animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }} />
-            ))}
-          </div>
-        </div>
-        <style>{`@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}`}</style>
-      </div>
-    );
-  }
+  if (authLoading) return <LoadingScreen text="Memuat sesi..." />;
+  if (!session) return <AuthPage />;
+  if (loading) return <LoadingScreen text="Menghubungkan ke database..." />;
+
+  const userId = session.user.id;
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#080B14', color: '#F1F5F9' }}>
@@ -207,6 +237,13 @@ export default function App() {
             messages={chatMessages}
             onSend={sendChatMessage}
             onClear={clearChat}
+          />
+        )}
+        {currentPage === 'profile' && (
+          <Profile
+            user={user}
+            userId={userId}
+            onUserUpdate={setUser}
           />
         )}
       </main>

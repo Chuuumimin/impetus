@@ -39,6 +39,9 @@ export const api = {
   createUser: (userId: string, userData: object) =>
     req(`/user`, { method: 'POST', body: JSON.stringify({ userId, ...userData }) }),
 
+  updateUser: (userId: string, userData: Partial<User>) =>
+    req(`/user`, { method: 'POST', body: JSON.stringify({ userId, ...userData }) }),
+
   upgradeUser: (userId: string) =>
     req<{ success: boolean; user: User }>(`/user/${userId}/upgrade`, { method: 'POST' }),
 

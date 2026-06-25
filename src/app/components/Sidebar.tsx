@@ -23,7 +23,6 @@ export function Sidebar({ currentPage, setCurrentPage, user }: SidebarProps) {
       className="flex flex-col w-64 shrink-0 border-r"
       style={{ background: '#0D111F', borderColor: '#1E2740' }}
     >
-      {/* Logo */}
       <div className="flex items-center gap-3 px-6 py-5 border-b" style={{ borderColor: '#1E2740' }}>
         <div
           className="flex items-center justify-center w-9 h-9 rounded-xl"
@@ -44,7 +43,6 @@ export function Sidebar({ currentPage, setCurrentPage, user }: SidebarProps) {
         </div>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -55,7 +53,7 @@ export function Sidebar({ currentPage, setCurrentPage, user }: SidebarProps) {
             <button
               key={item.id}
               onClick={() => setCurrentPage(item.id)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-150 group"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-150"
               style={{
                 background: isActive
                   ? 'linear-gradient(135deg, rgba(109,40,217,0.3), rgba(79,70,229,0.2))'
@@ -91,7 +89,6 @@ export function Sidebar({ currentPage, setCurrentPage, user }: SidebarProps) {
         })}
       </nav>
 
-      {/* Upgrade banner for free users */}
       {!isPro && (
         <div className="mx-3 mb-3 p-4 rounded-xl" style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(217,119,6,0.05))', border: '1px solid rgba(245,158,11,0.25)' }}>
           <div className="flex items-center gap-2 mb-2">
@@ -102,7 +99,6 @@ export function Sidebar({ currentPage, setCurrentPage, user }: SidebarProps) {
             Buka Future AI Simulation dan fitur eksklusif lainnya.
           </p>
           <button
-            onClick={() => {}}
             className="w-full py-1.5 rounded-lg text-xs font-medium transition-opacity hover:opacity-90"
             style={{ background: 'linear-gradient(90deg, #D97706, #F59E0B)', color: '#fff' }}
           >
@@ -111,11 +107,15 @@ export function Sidebar({ currentPage, setCurrentPage, user }: SidebarProps) {
         </div>
       )}
 
-      {/* User Profile */}
+      {/* User card — click to go to Profile */}
       <div className="px-3 pb-4">
-        <div
-          className="flex items-center gap-3 p-3 rounded-xl"
-          style={{ background: '#111827', border: '1px solid #1E2740' }}
+        <button
+          onClick={() => setCurrentPage('profile')}
+          className="w-full flex items-center gap-3 p-3 rounded-xl transition-colors hover:bg-white/5 text-left"
+          style={{
+            background: currentPage === 'profile' ? 'rgba(109,40,217,0.15)' : '#111827',
+            border: currentPage === 'profile' ? '1px solid rgba(139,92,246,0.3)' : '1px solid #1E2740',
+          }}
         >
           <div
             className="flex items-center justify-center w-9 h-9 rounded-full shrink-0 text-sm font-semibold"
@@ -125,15 +125,13 @@ export function Sidebar({ currentPage, setCurrentPage, user }: SidebarProps) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-white truncate">{user.name}</p>
-            <div className="flex items-center gap-1">
-              {isPro ? (
-                <span className="text-xs" style={{ color: '#F59E0B' }}>Pro User ✦</span>
-              ) : (
-                <span className="text-xs" style={{ color: '#64748B' }}>Free User</span>
-              )}
-            </div>
+            {isPro ? (
+              <span className="text-xs" style={{ color: '#F59E0B' }}>Pro User ✦</span>
+            ) : (
+              <span className="text-xs" style={{ color: '#64748B' }}>Free User</span>
+            )}
           </div>
-        </div>
+        </button>
       </div>
     </aside>
   );
