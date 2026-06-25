@@ -10,6 +10,7 @@ import { FutureSimulation } from './components/FutureSimulation';
 import { ChatAI } from './components/ChatAI';
 import { Profile } from './components/Profile';
 import { AuthPage } from './components/AuthPage';
+import { Onboarding } from './components/Onboarding';
 import { api, type SimulationRecord, type ChatMessage } from './lib/api';
 
 export type Page = 'dashboard' | 'tasks' | 'progress' | 'simulation' | 'chat' | 'profile';
@@ -21,6 +22,16 @@ export interface User {
   plan: Plan;
   avatar: string;
   joinDate: string;
+  onboardingComplete?: boolean;
+  age?: number;
+  occupation?: string;
+  income?: number;
+  shortGoals?: string[];
+  longGoals?: string[];
+  skills?: string[];
+  habits?: string[];
+  lifeProfile?: { summary: string; strengths: string[]; weaknesses: string[] };
+  roadmap?: Array<{ label: string; focus: string; actions: string[]; color: string }>;
 }
 
 export interface Task {
@@ -47,7 +58,7 @@ const DEFAULT_TASKS: Task[] = [
 function makeDefaultUser(session: Session): User {
   const name = (session.user.user_metadata?.name as string) || session.user.email?.split('@')[0] || 'User';
   const avatar = name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
-  return { name, email: session.user.email || '', plan: 'free', avatar, joinDate: new Date().toISOString() };
+  return { name, email: session.user.email || '', plan: 'free', avatar, joinDate: new Date().toISOString(), onboardingComplete: false };
 }
 
 function LoadingScreen({ text }: { text: string }) {
@@ -79,7 +90,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<User>({ name: '', email: '', plan: 'free', avatar: '', joinDate: '' });
+  const [user, setUser] = useState<User>({ name: '', email: '', plan: 'free', avatar: '', joinDate: '', onboardingComplete: false });
   const [tasks, setTasks] = useState<Task[]>([]);
   const [simHistory, setSimHistory] = useState<SimulationRecord[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -87,19 +98,10 @@ export default function App() {
   const skipNextTaskSave = useRef(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setAuthLoading(false);
-    });
+    supabase.auth.getSession().then(({ data: { session } }) => { setSession(session); setAuthLoading(false); });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
       setSession(session);
-      if (!session) {
-        setTasks([]);
-        setSimHistory([]);
-        setChatMessages([]);
-        setCurrentPage('dashboard');
-        skipNextTaskSave.current = true;
-      }
+      if (!session) { setTasks([]); setSimHistory([]); setChatMessages([]); setCurrentPage('dashboard'); skipNextTaskSave.current = true; }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -118,14 +120,11 @@ export default function App() {
           await api.saveTasks(userId, DEFAULT_TASKS);
           setUser(defaultUser);
           setTasks(DEFAULT_TASKS);
-          setSimHistory([]);
-          setChatMessages([]);
+          setSimHistory([]); setChatMessages([]);
         } else {
           setUser(userData as User);
           const [tasksData, historyData, chatData] = await Promise.all([
-            api.getTasks(userId),
-            api.getSimulations(userId),
-            api.getChat(userId),
+            api.getTasks(userId), api.getSimulations(userId), api.getChat(userId),
           ]);
           setTasks(Array.isArray(tasksData) ? tasksData : DEFAULT_TASKS);
           setSimHistory(Array.isArray(historyData) ? historyData : []);
@@ -133,13 +132,8 @@ export default function App() {
         }
       } catch {
         const defaultUser = makeDefaultUser(session);
-        setUser(defaultUser);
-        setTasks(DEFAULT_TASKS);
-        setSimHistory([]);
-        setChatMessages([]);
-      } finally {
-        setLoading(false);
-      }
+        setUser(defaultUser); setTasks(DEFAULT_TASKS); setSimHistory([]); setChatMessages([]);
+      } finally { setLoading(false); }
     };
     init();
   }, [session?.user.id]);
@@ -150,20 +144,15 @@ export default function App() {
     if (loading) return;
     clearTimeout(taskSaveTimer.current);
     taskSaveTimer.current = setTimeout(() => {
-      api.saveTasks(session.user.id, tasks).catch(e => console.log('Auto-save tasks failed:', e));
+      api.saveTasks(session.user.id, tasks).catch(e => console.log('Auto-save failed:', e));
     }, 800);
     return () => clearTimeout(taskSaveTimer.current);
   }, [tasks, session?.user.id, loading]);
 
   const upgradeToPro = async () => {
     if (!session) return;
-    try {
-      const result = await api.upgradeUser(session.user.id);
-      if (result.success) setUser(result.user);
-      else throw new Error('Upgrade unsuccessful');
-    } catch {
-      setUser(prev => ({ ...prev, plan: 'pro' }));
-    }
+    try { const r = await api.upgradeUser(session.user.id); if (r.success) setUser(r.user); else throw new Error(); }
+    catch { setUser(prev => ({ ...prev, plan: 'pro' })); }
   };
 
   const simulateAI = async (tasks: Task[], goal: string): Promise<string> => {
@@ -175,42 +164,26 @@ export default function App() {
     return result.result;
   };
 
-  const clearSimHistory = async () => {
-    if (!session) return;
-    await api.clearSimulations(session.user.id);
-    setSimHistory([]);
-  };
+  const clearSimHistory = async () => { if (!session) return; await api.clearSimulations(session.user.id); setSimHistory([]); };
 
   const sendChatMessage = async (message: string) => {
     if (!session) throw new Error('Tidak terautentikasi');
-    const optimisticUser: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: message,
-      createdAt: new Date().toISOString(),
-    };
-    setChatMessages(prev => [...prev, optimisticUser]);
+    const optimistic: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: message, createdAt: new Date().toISOString() };
+    setChatMessages(prev => [...prev, optimistic]);
     const result = await api.sendChat(session.user.id, message, user.name);
-    if (result.error) {
-      setChatMessages(prev => prev.filter(m => m.id !== optimisticUser.id));
-      throw new Error(result.error);
-    }
-    if (!result.message) {
-      setChatMessages(prev => prev.filter(m => m.id !== optimisticUser.id));
-      throw new Error('Tidak ada respons dari AI');
-    }
+    if (result.error) { setChatMessages(prev => prev.filter(m => m.id !== optimistic.id)); throw new Error(result.error); }
+    if (!result.message) { setChatMessages(prev => prev.filter(m => m.id !== optimistic.id)); throw new Error('Tidak ada respons dari AI'); }
     setChatMessages(prev => [...prev, result.message!]);
   };
 
-  const clearChat = async () => {
-    if (!session) return;
-    await api.clearChat(session.user.id);
-    setChatMessages([]);
-  };
+  const clearChat = async () => { if (!session) return; await api.clearChat(session.user.id); setChatMessages([]); };
+
+  const handleOnboardingComplete = (updatedUser: User) => { setUser(updatedUser); };
 
   if (authLoading) return <LoadingScreen text="Memuat sesi..." />;
   if (!session) return <AuthPage />;
   if (loading) return <LoadingScreen text="Menghubungkan ke database..." />;
+  if (!user.onboardingComplete) return <Onboarding user={user} userId={session.user.id} onComplete={handleOnboardingComplete} />;
 
   const userId = session.user.id;
 
@@ -221,31 +194,9 @@ export default function App() {
         {currentPage === 'dashboard' && <Dashboard user={user} tasks={tasks} setCurrentPage={setCurrentPage} />}
         {currentPage === 'tasks' && <Tasks tasks={tasks} setTasks={setTasks} />}
         {currentPage === 'progress' && <Progress tasks={tasks} />}
-        {currentPage === 'simulation' && (
-          <FutureSimulation
-            user={user}
-            tasks={tasks}
-            upgradeToPro={upgradeToPro}
-            simulateAI={simulateAI}
-            simHistory={simHistory}
-            clearSimHistory={clearSimHistory}
-          />
-        )}
-        {currentPage === 'chat' && (
-          <ChatAI
-            user={user}
-            messages={chatMessages}
-            onSend={sendChatMessage}
-            onClear={clearChat}
-          />
-        )}
-        {currentPage === 'profile' && (
-          <Profile
-            user={user}
-            userId={userId}
-            onUserUpdate={setUser}
-          />
-        )}
+        {currentPage === 'simulation' && <FutureSimulation user={user} tasks={tasks} upgradeToPro={upgradeToPro} simulateAI={simulateAI} simHistory={simHistory} clearSimHistory={clearSimHistory} />}
+        {currentPage === 'chat' && <ChatAI user={user} messages={chatMessages} onSend={sendChatMessage} onClear={clearChat} />}
+        {currentPage === 'profile' && <Profile user={user} userId={userId} onUserUpdate={setUser} />}
       </main>
       <Toaster richColors position="top-right" theme="dark" />
     </div>
