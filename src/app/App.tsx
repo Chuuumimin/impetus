@@ -43,6 +43,7 @@ export interface Task {
   category: string;
   createdAt: string;
   dueDate?: string;
+  goalTag?: string;
 }
 
 const DEFAULT_TASKS: Task[] = [
@@ -178,7 +179,18 @@ export default function App() {
 
   const clearChat = async () => { if (!session) return; await api.clearChat(session.user.id); setChatMessages([]); };
 
-  const handleOnboardingComplete = (updatedUser: User) => { setUser(updatedUser); };
+  const handleOnboardingComplete = async (updatedUser: User) => {
+    setUser(updatedUser);
+    if (!session) return;
+    try {
+      const result = await api.generateTasks(session.user.id, {
+        shortGoals: updatedUser.shortGoals, longGoals: updatedUser.longGoals,
+        occupation: updatedUser.occupation, skills: updatedUser.skills,
+        habits: updatedUser.habits, roadmap: updatedUser.roadmap, userName: updatedUser.name,
+      });
+      if (result.tasks && Array.isArray(result.tasks)) setTasks(result.tasks);
+    } catch (e) { console.log("Auto-generate tasks failed:", e); }
+  };
 
   if (authLoading) return <LoadingScreen text="Memuat sesi..." />;
   if (!session) return <AuthPage />;
@@ -193,7 +205,7 @@ export default function App() {
       <main className="flex-1 overflow-auto">
         {currentPage === 'dashboard' && <Dashboard user={user} tasks={tasks} setCurrentPage={setCurrentPage} />}
         {currentPage === 'tasks' && <Tasks tasks={tasks} setTasks={setTasks} />}
-        {currentPage === 'progress' && <Progress tasks={tasks} />}
+        {currentPage === 'progress' && <Progress tasks={tasks} user={user} />}
         {currentPage === 'simulation' && <FutureSimulation user={user} tasks={tasks} upgradeToPro={upgradeToPro} simulateAI={simulateAI} simHistory={simHistory} clearSimHistory={clearSimHistory} />}
         {currentPage === 'chat' && <ChatAI user={user} messages={chatMessages} onSend={sendChatMessage} onClear={clearChat} />}
         {currentPage === 'profile' && <Profile user={user} userId={userId} onUserUpdate={setUser} />}

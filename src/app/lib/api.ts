@@ -18,7 +18,7 @@ export interface ChatMessage {
 const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID as string;
 const publicAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
-const BASE = `https://${projectId}.supabase.co/functions/v1/make-server-886336a3`;
+const BASE = `https://${projectId}.supabase.co/functions/v1/server/make-server-886336a3`;
 const HEADERS = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${publicAnonKey}` };
 
 async function req<T = any>(path: string, options?: RequestInit): Promise<T> {
@@ -41,11 +41,14 @@ export const api = {
   sendChat: (userId: string, message: string, userName: string) =>
     req<{ message?: ChatMessage; error?: string }>(`/chat/${userId}`, { method: 'POST', body: JSON.stringify({ message, userName }) }),
   clearChat: (userId: string) => req(`/chat/${userId}`, { method: 'DELETE' }),
-  generateLifeProfile: (userId: string, data: {
-    age: number; occupation: string; income: number;
-    shortGoals: string[]; longGoals: string[]; skills: string[]; habits: string[]; userName: string;
-  }) => req<{ summary: string; strengths: string[]; weaknesses: string[]; roadmap: any[] }>(
-    `/generate-life-profile`,
-    { method: 'POST', body: JSON.stringify({ userId, ...data }) }
-  ),
+  generateLifeProfile: (userId: string, data: any) =>
+    req<{ summary?: string; strengths?: string[]; weaknesses?: string[]; roadmap?: any[]; error?: string }>(
+      `/generate-life-profile`,
+      { method: 'POST', body: JSON.stringify({ userId, ...data }) }
+    ),
+  generateTasks: (userId: string, data: any) =>
+    req<{ tasks?: Task[]; error?: string }>(
+      `/generate-tasks`,
+      { method: 'POST', body: JSON.stringify({ userId, ...data }) }
+    ),
 };
