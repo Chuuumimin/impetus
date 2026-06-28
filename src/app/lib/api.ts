@@ -23,7 +23,12 @@ const HEADERS = { 'Content-Type': 'application/json', 'Authorization': `Bearer $
 
 async function req<T = any>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { ...options, headers: { ...HEADERS, ...options?.headers } });
-  return res.json();
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`[HTTP ${res.status}] ${text.substring(0, 300)}`);
+  }
 }
 
 export const api = {
