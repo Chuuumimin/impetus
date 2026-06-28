@@ -84,7 +84,12 @@ export function Onboarding({ user, userId, onComplete }: Props) {
         age: parseInt(data.age), occupation: data.occupation, income: data.income,
         shortGoals: data.shortGoals, longGoals: data.longGoals, skills: data.skills, habits: data.habits, userName: user.name,
       });
-      clearInterval(interval); setLoadingProgress(100); setProfileResult(result as ProfileResult);
+      clearInterval(interval); setLoadingProgress(100);
+      if ((result as any).error || !result.summary) {
+        setGenError((result as any).error || 'AI tidak mengembalikan profil. Coba lagi.');
+        return;
+      }
+      setProfileResult(result as ProfileResult);
       await new Promise(r => setTimeout(r, 500)); setStep(8);
     } catch (e: any) { clearInterval(interval); setLoadingProgress(100); setGenError(e?.message || 'Gagal generate profil.'); }
   };
