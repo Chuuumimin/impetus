@@ -199,7 +199,7 @@ Respons HANYA dalam format JSON berikut (tanpa markdown, tanpa teks lain):
     catch { return c.json({ error: "AI mengembalikan format yang tidak valid. Coba lagi." }, 500); }
 
     if (userId) {
-      await supabase.from("users").upsert({
+      const { error: saveError } = await supabase.from("users").upsert({
         id: userId, age, occupation, income,
         short_goals: shortGoals || [], long_goals: longGoals || [],
         skills: skills || [], habits: habits || [],
@@ -207,7 +207,8 @@ Respons HANYA dalam format JSON berikut (tanpa markdown, tanpa teks lain):
         roadmap: profile.roadmap,
         onboarding_complete: true,
         updated_at: new Date().toISOString(),
-      }).catch(e => console.log("Warning: failed to save profile:", e));
+      });
+      if (saveError) console.log("Warning: failed to save profile:", saveError);
     }
 
     return c.json({ summary: profile.summary, strengths: profile.strengths, weaknesses: profile.weaknesses, roadmap: profile.roadmap });
@@ -242,8 +243,8 @@ app.post(`${P}/simulate`, async (c) => {
     const text = await callGemini(apiKey, prompt, STRICT_COACH, 0.85, 2048);
 
     if (userId) {
-      await supabase.from("simulation_history").insert({ user_id: userId, goal: goal || "", result: text, task_snapshot: { total, done, rate, categories } })
-        .catch(e => console.log("Warning: failed to save simulation:", e));
+      const { error: simError } = await supabase.from("simulation_history").insert({ user_id: userId, goal: goal || "", result: text, task_snapshot: { total, done, rate, categories } });
+      if (simError) console.log("Warning: failed to save simulation:", simError);
     }
     return c.json({ result: text });
   } catch (e) { return c.json({ error: `Simulasi gagal: ${e}` }, 500); }
