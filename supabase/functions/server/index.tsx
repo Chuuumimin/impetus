@@ -1,12 +1,10 @@
 import { Hono } from "npm:hono@4";
 import { cors } from "npm:hono@4/cors";
-import { logger } from "npm:hono@4/logger";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const app = new Hono();
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-app.use("*", logger(console.log));
 app.use("/*", cors({ origin: "*", allowHeaders: ["Content-Type", "Authorization"], allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], exposeHeaders: ["Content-Length"], maxAge: 600 }));
 
 const P = "/make-server-886336a3";
