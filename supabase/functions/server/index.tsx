@@ -7,7 +7,7 @@ const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPAB
 
 app.use("/*", cors({ origin: "*", allowHeaders: ["Content-Type", "Authorization"], allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], exposeHeaders: ["Content-Length"], maxAge: 600 }));
 
-const P = "/make-server-886336a3";
+const P = "/server/make-server-886336a3";
 
 const STRICT_COACH = `Kamu adalah seorang Pelatih Kehidupan (Life Coach) yang sangat analitis, tegas, dan berorientasi pada hasil. Jangan terlalu banyak memuji. Berikan kritik tajam, evaluasi yang pragmatis, dan tantang pengguna jika target mereka tidak realistis dengan rutinitas harian mereka. Gunakan nada bicara yang lugas layaknya mentor profesional yang peduli tetapi tidak memanjakan. Jawab dalam Bahasa Indonesia.`;
 
