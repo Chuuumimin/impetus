@@ -190,7 +190,7 @@ export default function App() {
         habits: updatedUser.habits, roadmap: updatedUser.roadmap, userName: updatedUser.name,
       });
       if (result.tasks && Array.isArray(result.tasks)) {
-        skipNextTaskSave.current = true;
+        skipNextTaskSave.current = false;
         setTasks(result.tasks);
       }
     } catch (e) { console.log('Auto-generate tasks failed:', e); }
