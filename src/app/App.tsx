@@ -180,16 +180,20 @@ export default function App() {
   const clearChat = async () => { if (!session) return; await api.clearChat(session.user.id); setChatMessages([]); };
 
   const handleOnboardingComplete = async (updatedUser: User) => {
-    setUser(updatedUser);
     if (!session) return;
+    await api.createUser(session.user.id, updatedUser);
+    setUser(updatedUser);
     try {
       const result = await api.generateTasks(session.user.id, {
         shortGoals: updatedUser.shortGoals, longGoals: updatedUser.longGoals,
         occupation: updatedUser.occupation, skills: updatedUser.skills,
         habits: updatedUser.habits, roadmap: updatedUser.roadmap, userName: updatedUser.name,
       });
-      if (result.tasks && Array.isArray(result.tasks)) setTasks(result.tasks);
-    } catch (e) { console.log("Auto-generate tasks failed:", e); }
+      if (result.tasks && Array.isArray(result.tasks)) {
+        skipNextTaskSave.current = true;
+        setTasks(result.tasks);
+      }
+    } catch (e) { console.log('Auto-generate tasks failed:', e); }
   };
 
   if (authLoading) return <LoadingScreen text="Memuat sesi..." />;
